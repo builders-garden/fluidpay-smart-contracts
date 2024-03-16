@@ -61,12 +61,9 @@ contract FluidPaySingletonModule is AutomationCompatible {
         minWethSwapAmount = _minWethSwapAmount;
     }
 
-    function setOwner(address _owner) public onlyOwner {
-        owner = _owner;
-    }
-
     function setUpkeep(address _upkeep) public onlyOwner {
         require(_upkeep != address(0), "Invalid upkeep address");
+        require(!upkeep, "Upkeep already set");
         upkeep = _upkeep;
     }
 
