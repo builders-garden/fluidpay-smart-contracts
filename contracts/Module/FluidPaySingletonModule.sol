@@ -116,8 +116,10 @@ contract ModuleProxyFactory is AutomationCompatible {
     address[] memory walletsToCheckForDeposit = depositSafeRegistered;
     address[] memory tokensToSwap = new address[](swappableERC20.length);
     address[] memory filteredTokensToSwap;
+    uint256 walletsToCheckLingth = walletsToCheckForSwap.length;
     uint count;
-    for (uint i; i < walletsToCheckForSwap.length; ++i) {
+    /*
+    for (uint i; i < walletsToCheckLingth; i++) {
       for (uint j; j < swappableERC20.length; ++j) {
         if (IERC20(swappableERC20[j]).balanceOf(walletsToCheckForSwap[i]) > 0 && isSwapServiceRegistered[walletsToCheckForSwap[i]]) {
           tokensToSwap[count] = swappableERC20[j];
@@ -130,14 +132,48 @@ contract ModuleProxyFactory is AutomationCompatible {
       }
 
       if (filteredTokensToSwap.length > 0) {
-        return (true, abi.encode(walletsToCheckForSwap[i], IERC20(filteredTokensToSwap[i]).balanceOf(walletsToCheckForSwap[i]) ,true));
+        return (true, abi.encode(walletsToCheckForSwap[i], filteredTokensToSwap, true));
       }
     }
     for (uint i; i < walletsToCheckForDeposit.length; ++i) {
       if (IERC20(usdcAddress).balanceOf(walletsToCheckForDeposit[i]) > minDepositAmount && isDepositServiceRegistered[walletsToCheckForDeposit[i]]) {
-        uint256[] memory empty;
+        address[] memory empty;
         return (true, abi.encode(walletsToCheckForDeposit[i], empty, false));
       }
+    }
+    */
+    for (uint i = 0; i < walletsToCheckLingth; /* no increment here */) {
+        for (uint j = 0; j < swappableERC20.length; /* no increment here */) {
+            if (IERC20(swappableERC20[j]).balanceOf(walletsToCheckForSwap[i]) > 0 && isSwapServiceRegistered[walletsToCheckForSwap[i]]) {
+                tokensToSwap[count] = swappableERC20[j];
+                ++count;
+            }
+            // Increment j manually
+            unchecked { j++; }
+        }
+
+        filteredTokensToSwap = new address[](count);
+        for (uint k = 0; k < count; /* no increment here */) {
+            filteredTokensToSwap[k] = tokensToSwap[k];
+            // Increment k manually
+            unchecked { k++; }
+        }
+
+        if (filteredTokensToSwap.length > 0) {
+            return (true, abi.encode(walletsToCheckForSwap[i], filteredTokensToSwap, true));
+        }
+
+        // Increment i manually
+        unchecked { i++; }
+    }
+
+    for (uint i = 0; i < walletsToCheckForDeposit.length; /* no increment here */) {
+        if (IERC20(usdcAddress).balanceOf(walletsToCheckForDeposit[i]) > minDepositAmount && isDepositServiceRegistered[walletsToCheckForDeposit[i]]) {
+            address[] memory empty;
+            return (true, abi.encode(walletsToCheckForDeposit[i], empty, false));
+        }
+        // Increment i manually
+        unchecked { i++; }
     }
   }
 
