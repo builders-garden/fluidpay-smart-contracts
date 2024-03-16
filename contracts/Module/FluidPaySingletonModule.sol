@@ -213,20 +213,6 @@ contract FluidPaySingletonModule is AutomationCompatible {
                         Pancake Swap Functions 
     //////////////////////////////////////////////////////////////*/
 
-    function swap (address _tokenIn, uint256 _amount, address _safe) public onlyOwner {
-        _swapDirect(_tokenIn, _amount, _safe);
-    }
-
-    function _swapDirect(address _tokenIn, uint256 _amount, address _safe) internal {
-        require(_tokenIn != usdcAddress && _amount > 0, "Invalid token or amount");
-        // Swap token for usdc on Pancakeswap
-        address[] memory path = new address[](2);
-        path[0] = _tokenIn;
-        path[1] = usdcAddress; 
-        // Swap token on Uniswap
-        PancakeRouter02(pancakeSwapRouter).swapExactTokensForTokens(_amount, _amount, path, _safe, block.timestamp);
-    }
-
     function _swap(address _tokenIn, uint256 _amount, address _safe) internal {
         require(_tokenIn != usdcAddress && _amount > 0, "Invalid token or amount");
         // Swap token for usdc on Pancakeswap
