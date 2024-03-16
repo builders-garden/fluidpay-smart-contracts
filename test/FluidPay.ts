@@ -35,7 +35,7 @@ describe("FluidPay", function () {
 
     const pancakeSwapRouterContract = await ethers.getContractAt("PancakeRouter02", pancakeSwapRouter);
 
-    const fluidPaySingletonModule = await FluidPaySingletonModule.deploy(address, usdc, usdcAavePool, pancakeSwapRouter, [weth], 1, 50);
+    const fluidPaySingletonModule = await FluidPaySingletonModule.deploy(address, usdc, usdcAavePool, pancakeSwapRouter, [weth], 1, 1, 50);
 
     return { fluidPaySingletonModule, address, usdc, weth, usdcAavePool, pancakeSwapRouter, wethHolder, usdcContract, wethContract, pancakeSwapRouterContract };
   }
