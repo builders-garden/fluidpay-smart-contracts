@@ -63,7 +63,7 @@ contract FluidPaySingletonModule is AutomationCompatible {
 
     function setUpkeep(address _upkeep) public onlyOwner {
         require(_upkeep != address(0), "Invalid upkeep address");
-        require(!upkeep, "Upkeep already set");
+        require(upkeep != address(0), "Upkeep already set");
         upkeep = _upkeep;
     }
 
