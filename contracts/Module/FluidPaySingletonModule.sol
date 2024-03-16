@@ -3,7 +3,6 @@
 pragma solidity >=0.8.0;
 
 import "./utils/IGnosisSafe.sol";
-import "./utils/IPancakeRouter02.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 
@@ -16,7 +15,8 @@ contract FluidPaySingletonModule is AutomationCompatible {
     address public usdcAddress; //USDC on Base
     address public usdcAavePool; //AAVE Pool
 
-    uint256 public minDepositAmount; //Minimum deposit amount to trigger the automation logic and deposit on AAVE
+    uint256 public minUsdcDepositAmount; //Minimum deposit amount to trigger the automation logic and deposit on AAVE
+    uint256 public minWethSwapAmount; //Minimum swap amount to trigger the automation logic and swap on PancakeSwap
 
     address[] internal swapSafeRegistered; //List of Safe addresses that are allowed to use the swap service
     address[] internal depositSafeRegistered; //List of Safe addresses that are allowed to use the deposit service
@@ -38,12 +38,13 @@ contract FluidPaySingletonModule is AutomationCompatible {
         _;
     }
     
-    constructor(address _owner, address _usdcAddress, address _usdcAavePool, address _pancakeSwapRouter, address[] memory _swappableERC20, uint256 _minDeposit, uint256 _maxSizeService) {
+    constructor(address _owner, address _usdcAddress, address _usdcAavePool, address _pancakeSwapRouter, address[] memory _swappableERC20, uint256 _minUsdcDepositAmount, uint256 _minWethSwapAmount, uint256 _maxSizeService) {
         owner = _owner;
         usdcAddress = _usdcAddress;
         usdcAavePool = _usdcAavePool;
         s_swappableERC20 = _swappableERC20;
-        minDepositAmount = _minDeposit;
+        minUsdcDepositAmount = _minUsdcDepositAmount;
+        minWethSwapAmount = _minWethSwapAmount;
         max_size_service = _maxSizeService;
         pancakeSwapRouter = _pancakeSwapRouter;
     }
@@ -52,8 +53,12 @@ contract FluidPaySingletonModule is AutomationCompatible {
                         Only Owner Functions
     //////////////////////////////////////////////////////////////*/
 
-    function setMinDepositAmount(uint256 _minDeposit) public onlyOwner {
-        minDepositAmount = _minDeposit;
+    function setMinDepositUsdcAmount(uint256 _minUsdcDepositAmount) public onlyOwner {
+        minUsdcDepositAmount = _minUsdcDepositAmount;
+    }
+
+    function setMinWethSwapAmount(uint256 _minWethSwapAmount) public onlyOwner {
+        minWethSwapAmount = _minWethSwapAmount;
     }
 
     function setOwner(address _owner) public onlyOwner {
@@ -132,7 +137,7 @@ contract FluidPaySingletonModule is AutomationCompatible {
     
     for (uint i; i < walletsToCheckLingth; i++) {
       for (uint j; j < swappableERC20.length; ++j) {
-        if (IERC20(swappableERC20[j]).balanceOf(walletsToCheckForSwap[i]) > 0 && isSwapServiceRegistered[walletsToCheckForSwap[i]]) {
+        if (IERC20(swappableERC20[j]).balanceOf(walletsToCheckForSwap[i]) > minWethSwapAmount && isSwapServiceRegistered[walletsToCheckForSwap[i]]) {
           tokensToSwap[count] = swappableERC20[j];
           ++count;
         }
@@ -147,7 +152,7 @@ contract FluidPaySingletonModule is AutomationCompatible {
       }
     }
     for (uint i; i < walletsToCheckForDeposit.length; ++i) {
-      if (IERC20(usdcAddress).balanceOf(walletsToCheckForDeposit[i]) > minDepositAmount && isDepositServiceRegistered[walletsToCheckForDeposit[i]]) {
+      if (IERC20(usdcAddress).balanceOf(walletsToCheckForDeposit[i]) > minUsdcDepositAmount && isDepositServiceRegistered[walletsToCheckForDeposit[i]]) {
         address[] memory empty;
         return (true, abi.encode(walletsToCheckForDeposit[i], empty, false));
       }
@@ -220,7 +225,8 @@ contract FluidPaySingletonModule is AutomationCompatible {
         path[0] = _tokenIn;
         path[1] = usdcAddress; 
         // Swap token on Uniswap
-        bytes memory swapData = abi.encodeWithSignature("swapExactTokensForTokens(uint256,uint256,address[],address)", _amount, _amount, path, _safe);
+        uint256 deadline = block.timestamp + 300;
+        bytes memory swapData = abi.encodeWithSignature("swapExactTokensForTokens(uint256,uint256,address[],address,uint256)", _amount, _amount, path, _safe, deadline);
         if (_tokenIn == address(0)) {
             require(GnosisSafe(_safe).execTransactionFromModule(pancakeSwapRouter, _amount, swapData, Enum.Operation.Call), "Could not execute token swap");
         } else {
