@@ -6,15 +6,14 @@ import "./utils/IGnosisSafe.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 
-contract ModuleProxyFactory is AutomationCompatible {
+contract SingletonModule is AutomationCompatible {
 
     address internal owner; //Admin
     address internal upkeep; //Chainlink Upkeep
 
     address internal pancakeSwapRouter; //PancakeSwap Router
     address internal usdcAddress; //USDC on Base
-    address internal wstEthAddress; //WSTETH on AAVE
-    address internal wstEthAavePool; //AAVE Pool
+    address internal usdcAavePool; //AAVE Pool
 
     uint256 internal minDepositAmount; //Minimum deposit amount to trigger the automation logic and deposit on AAVE
 
@@ -22,6 +21,8 @@ contract ModuleProxyFactory is AutomationCompatible {
     address[] internal depositSafeRegistered; //List of Safe addresses that are allowed to use the deposit service
 
     address[] internal s_swappableERC20; // 0x0000000000000000000000000000000000000000 ETH, 0xdAC17F958D2ee523a2206206994597C13D831ec7 //USDT on Base
+
+    uint256 internal max_size_service; //Maximum size of the service arrays
     
     mapping(address => bool) public isSwapServiceRegistered; // all the safe addresses that are allowed to use the swap service
     mapping(address => bool) public isDepositServiceRegistered; // all the safe addresses that are allowed to use the deposit service
@@ -36,14 +37,14 @@ contract ModuleProxyFactory is AutomationCompatible {
         _;
     }
     
-    constructor(address _owner, address _upkeep, address _usdcAddress, address _wstEthAddress, address _wstEthAavePool, address[] memory _swappableERC20, uint256 _minDeposit) {
+    constructor(address _owner, address _upkeep, address _usdcAddress, address _usdcAavePool, address[] memory _swappableERC20, uint256 _minDeposit, uint256 _maxSizeService) {
         owner = _owner;
         upkeep = _upkeep;
         usdcAddress = _usdcAddress;
-        wstEthAddress = _wstEthAddress;
-        wstEthAavePool = _wstEthAavePool;
+        usdcAavePool = _usdcAavePool;
         s_swappableERC20 = _swappableERC20;
         minDepositAmount = _minDeposit;
+        max_size_service = _maxSizeService;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -116,6 +117,9 @@ contract ModuleProxyFactory is AutomationCompatible {
     address[] memory walletsToCheckForDeposit = depositSafeRegistered;
     address[] memory tokensToSwap = new address[](swappableERC20.length);
     address[] memory filteredTokensToSwap;
+    //check address[] length to avoid too expensive computation
+    require(walletsToCheckForSwap.length <= max_size_service, "Too many wallets to check for swap");
+    require(walletsToCheckForDeposit.length <= max_size_service, "Too many wallets to check for deposit");
     uint256 walletsToCheckLingth = walletsToCheckForSwap.length;
     uint count;
     /*
@@ -144,7 +148,7 @@ contract ModuleProxyFactory is AutomationCompatible {
     */
     for (uint i = 0; i < walletsToCheckLingth; /* no increment here */) {
         for (uint j = 0; j < swappableERC20.length; /* no increment here */) {
-            if (IERC20(swappableERC20[j]).balanceOf(walletsToCheckForSwap[i]) > 0 && isSwapServiceRegistered[walletsToCheckForSwap[i]]) {
+            if (IERC20(swappableERC20[j]).balanceOf(walletsToCheckForSwap[i]) > minDepositAmount && isSwapServiceRegistered[walletsToCheckForSwap[i]]) {
                 tokensToSwap[count] = swappableERC20[j];
                 ++count;
             }
@@ -184,7 +188,10 @@ contract ModuleProxyFactory is AutomationCompatible {
   function performUpkeep(
     bytes calldata performData
   ) external override(AutomationCompatibleInterface) onlyUpkeep {
-    (address wallet, address[] memory tokensToSwap, bool isSwapService) = abi.decode(performData, (address, address[], bool));
+    (address wallet, address[] memory tokensToSwap, bool isSwapService) = abi.decode(performData,(address, address[], bool));
+    // validate checkUpkeep parameters
+    require(wallet != address(0), "Invalid wallet");
+    require(tokensToSwap.length > 0, "Invalid tokens to swap");
     if (isSwapService) {
       for (uint i; i < tokensToSwap.length; ++i) {
         _swap(tokensToSwap[i], IERC20(tokensToSwap[i]).balanceOf(wallet), wallet, true);
@@ -199,13 +206,14 @@ contract ModuleProxyFactory is AutomationCompatible {
     //////////////////////////////////////////////////////////////*/
 
     function _swap(address _tokenIn, uint256 _amount, address _safe, bool isSimpleSwap) internal {
+        require(_tokenIn != usdcAddress && _amount > 0, "Invalid token or amount");
         // Approve token to spend on Pancake Swap
         bytes memory approveData = abi.encodeWithSignature("approve(address,uint256)", pancakeSwapRouter, _amount);
         require(GnosisSafe(_safe).execTransactionFromModule(_tokenIn, 0, approveData, Enum.Operation.Call), "Could not execute token approval");
         // Swap token for usdc on Pancakeswap
         address[] memory path = new address[](2);
-        path[0] = isSimpleSwap ? _tokenIn : usdcAddress;
-        path[1] = isSimpleSwap ? usdcAddress : wstEthAddress; 
+        path[0] = _tokenIn;
+        path[1] = usdcAddress; 
         // Swap token on Uniswap
         bytes memory swapData = abi.encodeWithSignature("swapExactTokensForTokens(uint256,uint256,address[],address)", _amount, _amount, path, _safe);
         if (_tokenIn == address(0)) {
@@ -215,7 +223,7 @@ contract ModuleProxyFactory is AutomationCompatible {
         }
         // Deposit wsteth on AAVE
         if (!isSimpleSwap) {
-            _deposit(IERC20(wstEthAddress).balanceOf(_safe), _safe);
+            _deposit(IERC20(usdcAddress).balanceOf(_safe), _safe);
         }
     }
 
@@ -224,11 +232,11 @@ contract ModuleProxyFactory is AutomationCompatible {
     //////////////////////////////////////////////////////////////*/
 
     function _deposit(uint256 _amount, address _safe) internal {
-        // Approve AAVE pool to spend WSTETH
-        bytes memory approveData = abi.encodeWithSignature("approve(address,uint256)", wstEthAavePool, _amount);
-        require(GnosisSafe(_safe).execTransactionFromModule(wstEthAddress, 0, approveData, Enum.Operation.Call), "Could not execute token approval");
+        // Approve AAVE pool to spend USDC
+        bytes memory approveData = abi.encodeWithSignature("approve(address,uint256)", usdcAavePool, _amount);
+        require(GnosisSafe(_safe).execTransactionFromModule(usdcAddress, 0, approveData, Enum.Operation.Call), "Could not execute token approval");
         // Supply token to AAVE
-        bytes memory supplyData = abi.encodeWithSignature("supply(address,uint256, address, uint16)", wstEthAddress , _amount, _safe, 0);
-        require(GnosisSafe(_safe).execTransactionFromModule(wstEthAavePool, 0, supplyData, Enum.Operation.Call), "Could not execute token supply");
+        bytes memory supplyData = abi.encodeWithSignature("supply(address,uint256, address, uint16)", usdcAddress , _amount, _safe, 0);
+        require(GnosisSafe(_safe).execTransactionFromModule(usdcAavePool, 0, supplyData, Enum.Operation.Call), "Could not execute token supply");
     }
 }
