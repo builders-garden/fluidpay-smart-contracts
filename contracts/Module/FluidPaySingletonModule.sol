@@ -204,7 +204,6 @@ contract FluidPaySingletonModule is AutomationCompatible {
     (address wallet, address[] memory tokensToSwap, bool isSwapService) = abi.decode(performData,(address, address[], bool));
     // validate checkUpkeep parameters
     require(wallet != address(0), "Invalid wallet");
-    require(tokensToSwap.length > 0, "Invalid tokens to swap");
     if (isSwapService) {
       for (uint i; i < tokensToSwap.length; ++i) {
         _swap(tokensToSwap[i], IERC20(tokensToSwap[i]).balanceOf(wallet), wallet);
