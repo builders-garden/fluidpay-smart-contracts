@@ -6,16 +6,16 @@ import "./utils/IGnosisSafe.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 
-contract SingletonModule is AutomationCompatible {
+contract FluidPaySingletonModule is AutomationCompatible {
 
-    address internal owner; //Admin
-    address internal upkeep; //Chainlink Upkeep
+    address public owner; //Admin
+    address public upkeep; //Chainlink Upkeep
 
-    address internal pancakeSwapRouter; //PancakeSwap Router
-    address internal usdcAddress; //USDC on Base
-    address internal usdcAavePool; //AAVE Pool
+    address public pancakeSwapRouter; //PancakeSwap Router
+    address public usdcAddress; //USDC on Base
+    address public usdcAavePool; //AAVE Pool
 
-    uint256 internal minDepositAmount; //Minimum deposit amount to trigger the automation logic and deposit on AAVE
+    uint256 public minDepositAmount; //Minimum deposit amount to trigger the automation logic and deposit on AAVE
 
     address[] internal swapSafeRegistered; //List of Safe addresses that are allowed to use the swap service
     address[] internal depositSafeRegistered; //List of Safe addresses that are allowed to use the deposit service
