@@ -2,7 +2,8 @@
   "name": "hardhat-project",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "hardhat": "^2.22.1"
+    "hardhat": "^2.22.1",
+    "ts-node": "^10.9.2"
   },
   "dependencies": {
     "@chainlink/contracts": "^0.8.0",
